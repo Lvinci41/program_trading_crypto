@@ -1,0 +1,62 @@
+import pandas as pd
+import numpy as np
+import datetime as dt
+from datetime import datetime, timedelta, timezone
+
+def get_up_or_down(df):
+    for i in range(len(df)):
+        if i > 0:
+            if df.iloc[i]['close'] >= df.iloc[i-1]['close']:
+                df.at[i, 'gain'] = df.iloc[i]['close'] - df.iloc[i-1]['close']
+                df.at[i, 'loss'] = 0
+            elif df.iloc[i]['close'] < df.iloc[i-1]['close']:
+                df.at[i, 'loss'] = df.iloc[i-1]['close'] - df.iloc[i]['close']
+                df.at[i, 'gain'] = 0
+            else:
+                df.at[i, 'gain'] = 0
+                df.at[i, 'loss'] = 0
+    return df
+
+def get_relative_strength_index(df):
+    df['Date'] = pd.to_datetime(df['timestamp'])
+    df.set_index(df['Date'])
+    df = get_up_or_down(df)
+    return df
+
+
+def get_average_gains(df, period):
+    for i in range(len(df)):
+        n, up, down = 0, 0, 0
+        if i == period:
+            while n < period:
+                if df.iloc[i-n]['gain'] > 0:
+                    up += df.iloc[i-n]['gain']
+                elif df.iloc[i-n]['loss'] > 0:
+                    down += df.iloc[i-n]['loss']
+                else:
+                    up += 0
+                    down += 0
+                n += 1
+            df.at[i, 'ag'] = up/period
+            df.at[i, 'al'] = down/period
+        elif i > period:
+            df.at[i, 'ag'] = (df.iloc[i-1]['ag'] * (period - 1) + df.iloc[i]['gain'])/period
+            df.at[i, 'al'] = (df.iloc[i-1]['al'] * (period - 1) + df.iloc[i]['loss'])/period
+            df['ag'] = df['ag'].fillna(0)
+            df['al'] = df['al'].fillna(0)
+    return df
+
+
+def get_relative_strength(df, period):
+    df = get_relative_strength_index(df)
+    df = get_average_gains(df, period)
+    for i in range(len(df)):
+        if i >= period:
+            df.at[i, 'rs'] = df.iloc[i]['ag']/df.iloc[i]['al']
+            df.at[i, 'rsi'] = (100-(100/(1+df.iloc[i]['rs'])))
+    return df
+
+
+BTCUSDT_df = pd.read_csv('20250202 12.58.42.-20170908 12.58.42._BTC-USDT_1D_okx_ohlc.csv')
+BTCUSDT_rsi = get_relative_strength(BTCUSDT_rsi, 14)
+BTCUSDT_rsi.head(50)
